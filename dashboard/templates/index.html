@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIDS Dashboard - Snort 3</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#e0e0e0;min-height:100vh}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+header{text-align:center;padding:30px 0;border-bottom:2px solid #4ECDC4;margin-bottom:30px}
+header h1{font-size:2.5em;background:linear-gradient(90deg,#FF6B6B,#4ECDC4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+header p{color:#888;font-size:1.1em}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+.card{background:rgba(255,255,255,0.05);border:1px solid rgba(78,205,196,0.2);border-radius:15px;padding:25px;backdrop-filter:blur(10px);transition:transform 0.3s,box-shadow 0.3s}
+.card:hover{transform:translateY(-5px);box-shadow:0 10px 40px rgba(78,205,196,0.15)}
+.card h2{color:#4ECDC4;margin-bottom:15px;font-size:1.3em;display:flex;align-items:center;gap:10px}
+.upload-area{border:3px dashed rgba(78,205,196,0.4);border-radius:15px;padding:40px;text-align:center;cursor:pointer;transition:all 0.3s;background:rgba(78,205,196,0.05)}
+.upload-area:hover{border-color:#4ECDC4;background:rgba(78,205,196,0.1)}
+.upload-area.dragover{border-color:#FF6B6B;background:rgba(255,107,107,0.1)}
+.upload-area h3{margin-bottom:15px;color:#4ECDC4}
+.upload-area p{color:#888}
+.btn{background:linear-gradient(135deg,#FF6B6B,#ee5a5a);color:white;border:none;padding:12px 30px;border-radius:25px;cursor:pointer;font-size:1em;font-weight:bold;transition:all 0.3s;margin:5px}
+.btn:hover{transform:scale(1.05);box-shadow:0 5px 20px rgba(255,107,107,0.4)}
+.btn-secondary{background:linear-gradient(135deg,#4ECDC4,#44a8a0)}
+.btn-secondary:hover{box-shadow:0 5px 20px rgba(78,205,196,0.4)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.status-bar{display:flex;align-items:center;gap:10px;padding:15px;background:rgba(0,0,0,0.3);border-radius:10px;margin-bottom:20px}
+.status-indicator{width:12px;height:12px;border-radius:50%;animation:pulse 2s infinite}
+.status-idle{background:#888;animation:none}
+.status-processing{background:#F7DC6F}
+.status-complete{background:#82E0AA;animation:none}
+.status-error{background:#FF6B6B;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.logs{background:#0a0a0a;border-radius:10px;padding:15px;font-family:'Courier New',monospace;font-size:0.85em;max-height:300px;overflow-y:auto;color:#0f0}
+.logs .error{color:#FF6B6B}
+.logs .success{color:#82E0AA}
+.logs .info{color:#F7DC6F}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;margin-top:15px}
+.stat-box{background:rgba(78,205,196,0.1);border:1px solid rgba(78,205,196,0.3);border-radius:10px;padding:15px;text-align:center}
+.stat-box .number{font-size:2em;font-weight:bold;color:#FF6B6B}
+.stat-box .label{color:#888;font-size:0.9em;margin-top:5px}
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px;margin-top:20px}
+.chart-card{background:rgba(255,255,255,0.05);border-radius:15px;padding:20px;text-align:center}
+.chart-card img{max-width:100%;border-radius:10px;box-shadow:0 5px 20px rgba(0,0,0,0.3)}
+.alerts-table{width:100%;border-collapse:collapse;margin-top:15px;font-size:0.9em}
+.alerts-table th{background:rgba(78,205,196,0.2);padding:12px;text-align:left;color:#4ECDC4;font-weight:600}
+.alerts-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.05)}
+.alerts-table tr:hover{background:rgba(78,205,196,0.05)}
+.priority-high{color:#FF6B6B;font-weight:bold}
+.priority-medium{color:#F7DC6F}
+.priority-low{color:#82E0AA}
+.input-group{display:flex;gap:10px;margin:10px 0;align-items:center;flex-wrap:wrap}
+.input-group input,.input-group select{background:rgba(255,255,255,0.1);border:1px solid rgba(78,205,196,0.3);color:#e0e0e0;padding:10px 15px;border-radius:8px;font-size:0.9em}
+.input-group input:focus,.input-group select:focus{outline:none;border-color:#4ECDC4}
+@media(max-width:768px){.grid{grid-template-columns:1fr}.charts-grid{grid-template-columns:1fr}header h1{font-size:1.8em}}
+</style>
+</head>
+<body>
+<div class="container">
+<header><h1>Network Intrusion Detection System</h1><p>Snort 3 Powered Security Dashboard | Kali Linux</p></header>
+<div class="status-bar"><div class="status-indicator status-idle" id="statusIndicator"></div><span id="statusText">Ready - Upload a PCAP or start live capture</span></div>
+<div class="grid">
+<div class="card">
+<h2>PCAP Upload</h2>
+<div class="upload-area" id="uploadArea"><h3>Drop PCAP file here</h3><p>or click to browse (.pcap, .pcapng, .cap)</p><input type="file" id="fileInput" accept=".pcap,.pcapng,.cap" style="display:none"></div>
+<div id="uploadInfo" style="margin-top:15px;text-align:center;"></div>
+<div style="text-align:center;margin-top:15px;"><button class="btn" id="analyzeBtn" disabled>Analyze with Snort 3</button></div>
+</div>
+<div class="card">
+<h2>Live Capture</h2>
+<div class="input-group"><label>Interface:</label><select id="interfaceSelect"><option value="eth0">eth0</option><option value="wlan0">wlan0</option><option value="lo">lo</option><option value="any">any</option></select><label>Packets:</label><input type="number" id="packetCount" value="100" min="10" max="10000"></div>
+<div style="text-align:center;margin-top:20px;"><button class="btn btn-secondary" id="liveCaptureBtn">Start Live Capture</button></div>
+<p style="margin-top:15px;color:#888;font-size:0.85em;text-align:center;">Requires root privileges for packet capture</p>
+</div>
+</div>
+<div class="card" id="statsCard" style="display:none;"><h2>Analysis Statistics</h2><div class="stats-grid" id="statsGrid"></div></div>
+<div class="card" id="alertsCard" style="display:none;"><h2>Detected Alerts</h2><div style="overflow-x:auto;"><table class="alerts-table" id="alertsTable"><thead><tr><th>Time</th><th>Severity</th><th>Rule</th><th>Protocol</th><th>Source</th><th>Destination</th></tr></thead><tbody id="alertsBody"></tbody></table></div></div>
+<div class="card" id="chartsCard" style="display:none;"><h2>Visualizations</h2><div class="charts-grid" id="chartsGrid"></div></div>
+<div class="card"><h2>Logs</h2><div class="logs" id="logsArea"><span class="info">[*] Dashboard initialized. Ready for analysis.</span></div><div style="text-align:center;margin-top:15px;"><button class="btn" onclick="clearAll()" style="background:#555;">Clear All</button><button class="btn" onclick="refreshStatus()" style="background:#555;">Refresh</button></div></div>
+</div>
+<script>
+let currentFile=null,statusInterval=null;
+const uploadArea=document.getElementById('uploadArea'),fileInput=document.getElementById('fileInput');
+uploadArea.addEventListener('click',()=>fileInput.click());
+uploadArea.addEventListener('dragover',e=>{e.preventDefault();uploadArea.classList.add('dragover')});
+uploadArea.addEventListener('dragleave',()=>uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop',e=>{e.preventDefault();uploadArea.classList.remove('dragover');if(e.dataTransfer.files.length>0)handleFile(e.dataTransfer.files[0])});
+fileInput.addEventListener('change',e=>{if(e.target.files.length>0)handleFile(e.target.files[0])});
+function handleFile(file){
+const fd=new FormData();fd.append('file',file);
+log('info',`[*] Uploading ${file.name}...`);
+fetch('/api/upload',{method:'POST',body:fd}).then(r=>r.json()).then(data=>{
+if(data.success){currentFile=data.path;document.getElementById('uploadInfo').innerHTML=`<span style="color:#82E0AA;">✓ ${data.filename}</span>`;document.getElementById('analyzeBtn').disabled=false;log('success',`[+] Uploaded: ${data.filename}`)}
+else{log('error',`[!] Upload failed: ${data.error}`)}
+}).catch(err=>log('error',`[!] Upload error: ${err}`));
+}
+document.getElementById('analyzeBtn').addEventListener('click',()=>{
+if(!currentFile)return;
+document.getElementById('analyzeBtn').disabled=true;document.getElementById('liveCaptureBtn').disabled=true;
+log('info','[*] Starting Snort 3 analysis...');
+fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pcap_file:currentFile})}).then(r=>r.json()).then(data=>{
+if(data.success){log('success','[+] Analysis started');startStatusPolling()}
+}).catch(err=>{log('error',`[!] Error: ${err}`);document.getElementById('analyzeBtn').disabled=false});
+});
+document.getElementById('liveCaptureBtn').addEventListener('click',()=>{
+const iface=document.getElementById('interfaceSelect').value,count=document.getElementById('packetCount').value;
+document.getElementById('analyzeBtn').disabled=true;document.getElementById('liveCaptureBtn').disabled=true;
+log('info',`[*] Starting live capture on ${iface}...`);
+fetch('/api/live-capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({interface:iface,count:parseInt(count)})}).then(r=>r.json()).then(data=>{
+if(data.success){log('success','[+] Live capture started');startStatusPolling()}
+}).catch(err=>{log('error',`[!] Error: ${err}`);document.getElementById('liveCaptureBtn').disabled=false});
+});
+function startStatusPolling(){if(statusInterval)clearInterval(statusInterval);statusInterval=setInterval(refreshStatus,2000)}
+function refreshStatus(){
+fetch('/api/status').then(r=>r.json()).then(data=>{
+updateStatus(data.status);
+if(data.logs&&data.logs.length>0){
+const la=document.getElementById('logsArea');la.innerHTML='';
+data.logs.forEach(l=>{let t='info';if(l.includes('[+]'))t='success';else if(l.includes('[!]'))t='error';log(t,l,false)});
+la.scrollTop=la.scrollHeight;
+}
+if(data.status==='complete'){
+clearInterval(statusInterval);document.getElementById('analyzeBtn').disabled=false;document.getElementById('liveCaptureBtn').disabled=false;
+if(data.stats&&data.stats.alerts)showStats(data.stats.alerts);
+if(data.charts)showCharts(data.charts);loadAlerts();
+}else if(data.status==='error'){
+clearInterval(statusInterval);document.getElementById('analyzeBtn').disabled=false;document.getElementById('liveCaptureBtn').disabled=false;
+}
+});
+}
+function updateStatus(s){
+const ind=document.getElementById('statusIndicator'),txt=document.getElementById('statusText');
+ind.className='status-indicator';
+const m={idle:{c:'status-idle',t:'Ready - Upload a PCAP or start live capture'},uploaded:{c:'status-processing',t:'File uploaded - Ready to analyze'},preprocessing:{c:'status-processing',t:'Preprocessing traffic...'},analyzing:{c:'status-processing',t:'Running Snort 3...'},parsing:{c:'status-processing',t:'Parsing alerts...'},visualizing:{c:'status-processing',t:'Generating charts...'},capturing:{c:'status-processing',t:'Capturing live traffic...'},complete:{c:'status-complete',t:'Analysis complete!'},error:{c:'status-error',t:'Error occurred'}};
+const i=m[s]||m.idle;ind.classList.add(i.c);txt.textContent=i.t;
+}
+function showStats(d){
+const c=document.getElementById('statsCard'),g=document.getElementById('statsGrid');c.style.display='block';g.innerHTML='';
+const s=[{n:d.total||0,l:'Total Alerts'},{n:(d.severity&&d.severity['1'])||0,l:'High Severity'},{n:(d.severity&&d.severity['2'])||0,l:'Medium Severity'},{n:(d.severity&&d.severity['3'])||0,l:'Low Severity'},{n:Object.keys(d.protocols||{}).length,l:'Protocols'}];
+s.forEach(x=>{g.innerHTML+=`<div class="stat-box"><div class="number">${x.n}</div><div class="label">${x.l}</div></div>`});
+}
+function loadAlerts(){
+fetch('/api/alerts').then(r=>r.json()).then(data=>{
+const c=document.getElementById('alertsCard'),tb=document.getElementById('alertsBody');
+if(data.alerts&&data.alerts.length>0){
+c.style.display='block';tb.innerHTML='';
+data.alerts.forEach(a=>{
+const pc=a.priority===1?'priority-high':a.priority===2?'priority-medium':'priority-low';
+const st=a.priority===1?'HIGH':a.priority===2?'MEDIUM':'LOW';
+tb.innerHTML+=`<tr><td>${a.timestamp_raw||'N/A'}</td><td class="${pc}">${st}</td><td>${a.message||'Unknown'}</td><td>${a.protocol||'N/A'}</td><td>${a.src_ip||'N/A'}</td><td>${a.dst_ip||'N/A'}</td></tr>`;
+});
+}
+});
+}
+function showCharts(ch){
+const c=document.getElementById('chartsCard'),g=document.getElementById('chartsGrid');c.style.display='block';g.innerHTML='';
+const n={severity:'Severity Distribution',rules:'Top Rules',ips:'Top IPs',protocols:'Protocols',timeline:'Timeline',traffic:'Traffic Stats'};
+for(const[k,v]of Object.entries(ch)){
+const t=n[k]||k;g.innerHTML+=`<div class="chart-card"><h3 style="color:#4ECDC4;margin-bottom:15px;">${t}</h3><img src="/api/charts/${v}?t=${Date.now()}" alt="${t}"></div>`;
+}
+}
+function log(t,m,append=true){
+const la=document.getElementById('logsArea');const s=document.createElement('div');s.className=t;s.textContent=m;
+if(append){la.appendChild(s);la.scrollTop=la.scrollHeight}else{la.appendChild(s)}
+}
+function clearAll(){
+fetch('/api/clear',{method:'POST'}).then(()=>{
+currentFile=null;document.getElementById('uploadInfo').innerHTML='';document.getElementById('analyzeBtn').disabled=true;
+document.getElementById('statsCard').style.display='none';document.getElementById('alertsCard').style.display='none';document.getElementById('chartsCard').style.display='none';
+document.getElementById('logsArea').innerHTML='<span class="info">[*] Cleared. Ready.</span>';updateStatus('idle');if(statusInterval)clearInterval(statusInterval);
+});
+}
+</script>
+</body>
+</html>
